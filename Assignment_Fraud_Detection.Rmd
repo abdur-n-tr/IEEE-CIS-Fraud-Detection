@@ -1,0 +1,569 @@
+---
+jupyter:
+  jupytext:
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.1'
+      jupytext_version: 1.1.7
+  kernelspec:
+    display_name: Python 3
+    language: python
+    name: python3
+---
+
+```{python}
+import pandas as pd
+import numpy as np
+
+# matplotlib and seaborn for plotting
+import matplotlib.pyplot as plt
+import seaborn as sns
+```
+
+```{python}
+transaction_df = pd.read_csv('E:/Personl_Stuff/Documents/i2c/Assignment/transaction_data.csv')
+transaction_df.head()
+```
+
+```{python}
+transaction_df.describe()
+```
+
+```{python}
+# Function to get summary of DataFrame
+def summary_table(df):
+    summary = pd.DataFrame(df.dtypes, columns=['dtypes'])
+    summary = summary.reset_index()
+    summary['Name'] = summary['index']
+    summary = summary[['Name', 'dtypes']]
+    summary['Missing %'] = ((df.isnull().sum().values) / len(df)) * 100
+    summary['Unique'] = df.nunique().values
+    
+    summary = summary.sort_values('Unique')
+    
+    return summary
+```
+
+```{python}
+transaction_summary_df = summary_table(transaction_df)
+transaction_summary_df
+```
+
+### Dig Data
+
+```{python}
+# Are there some specifc transaction amounts on which fraud is most likely
+# to occur?
+pd.crosstab(transaction_df['transaction_amount'], transaction_df['is_fraud']) \
+.reset_index().rename(columns = {0: 'No Fraud', 1: 'Fraud'}).sort_values('Fraud', ascending=False)
+```
+
+```{python}
+merchant_fraud = pd.crosstab(transaction_df['merchant_id'], transaction_df['is_fraud']) \
+                .reset_index().rename(columns = {0: 'No Fraud', 1: 'Fraud'}).sort_values('Fraud', ascending=False)
+
+merchant_fraud[merchant_fraud['Fraud'] > 0]
+```
+
+## Merchant Fraud Transactions
+
+```{python}
+merchant_transaction_amt = transaction_df[transaction_df.is_fraud == 1] \
+                            .groupby(['merchant_id', 'is_fraud'])['transaction_amount'] \
+                            .sum().reset_index().sort_values('transaction_amount', ascending=False)
+merchant_transaction_amt_mean = merchant_transaction_amt.transaction_amount.mean()
+merchant_less_mean = len(merchant_transaction_amt[merchant_transaction_amt.transaction_amount <= merchant_transaction_amt_mean])
+merchant_greater_mean = len(merchant_transaction_amt) - merchant_less_mean
+
+print("Fraud Transaction less than mean:", merchant_less_mean)
+print("Fraud Transaction greater than mean:", merchant_greater_mean)
+```
+
+```{python}
+merchant_transaction_amt.head(10)
+```
+
+```{python}
+transaction_df[transaction_df.is_fraud == 1].groupby(['customer_id', 'is_fraud'])\
+['previous_balance'].sum().reset_index().sort_values('previous_balance')
+```
+
+## Verify New_Balance after Transaction
+
+```{python}
+transaction_df['new_verified_balance'] = transaction_df.previous_balance - transaction_df.transaction_amount
+transaction_df['new_verified_balance'].head()
+```
+
+- Almost half of the transactions are done by customers who have negative balance which means they are using CREDIT_CARD and they have no balance in their CREDIT_CARD while doing transaction.
+
+<!-- #region -->
+- Transaction type of CREDIT_CARD guys ?
+- How negative balance related to Fraud ?
+
+
+- new_balance in original dataset is not correct .... PROBLEM ???????
+<!-- #endregion -->
+
+```{python}
+total_transactions = len(transaction_df)
+total_fraud_transactions = len(transaction_df[transaction_df.is_fraud == 1])
+
+negative_balance_transactions = transaction_df[transaction_df.new_verified_balance < 0]
+negative_balance_transactions_percent = round((len(negative_balance_transactions) / total_transactions) * 100, 2)
+
+positive_balance_transactions = transaction_df[transaction_df.new_verified_balance >= 0]
+positive_balance_transactions_percent = round(len(positive_balance_transactions) / total_transactions * 100, 2)
+
+negative_balance_fraud_transactions = negative_balance_transactions[negative_balance_transactions.is_fraud == 1]
+negative_balance_fraud_transactions_percent = round(len(negative_balance_fraud_transactions)
+                                               / total_fraud_transactions * 100, 2)
+
+positive_balance_fraud_transactions = positive_balance_transactions[positive_balance_transactions.is_fraud == 1]
+positive_balance_fraud_transactions_percent = round(len(positive_balance_fraud_transactions)
+                                               / total_fraud_transactions * 100, 2)
+
+
+positive_balance_frauds = (transaction_df.new_verified_balance >= 0) & (transaction_df.is_fraud == 1)
+negative_balance_frauds = (transaction_df.new_verified_balance < 0) & (transaction_df.is_fraud == 1)
+
+positive_cash_transactions = round(len(transaction_df[positive_balance_frauds & 
+                                                (transaction_df.transaction_type == 'CASH_OUT')])
+                                   / len(positive_balance_fraud_transactions) * 100, 2)
+positive_transfer_transactions = round(len(transaction_df[positive_balance_frauds & 
+                                                (transaction_df.transaction_type == 'TRANSFER')])
+                                   / len(positive_balance_fraud_transactions) * 100, 2)
+
+negative_cash_transactions = round(len(transaction_df[negative_balance_frauds & 
+                                                (transaction_df.transaction_type == 'CASH_OUT')])
+                                   / len(negative_balance_fraud_transactions) * 100, 2)
+negative_transfer_transactions = round(len(transaction_df[negative_balance_frauds & 
+                                                (transaction_df.transaction_type == 'TRANSFER')])
+                                   / len(negative_balance_fraud_transactions) * 100, 2)
+
+
+print("Transactions with negative new_balance: {}%".format(negative_balance_transactions_percent))
+print("Transactions with positive new_balance: {}%".format(positive_balance_transactions_percent))
+print("Fraud transactions with negative new_balance: {}%".format(negative_balance_fraud_transactions_percent))
+print("Fraud transactions with positive new_balance: {}%".format(positive_balance_fraud_transactions_percent))
+print("Fraud transactions with positive new_balance and transaction_type(CASH_OUT): {}" \
+      .format(positive_cash_transactions))
+print("Fraud transactions with positive new_balance and transaction_type(TRANSFER): {}" \
+      .format(positive_transfer_transactions))
+print("Fraud transactions with negative new_balance and transaction_type(CASH_OUT): {}" \
+      .format(negative_cash_transactions))
+print("Fraud transactions with negative new_balance and transaction_type(TRANSFER): {}" \
+      .format(negative_transfer_transactions))
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+pd.crosstab(transaction_df['transaction_type'], transaction_df['is_fraud'], normalize='index') * 100
+```
+
+```{python}
+transaction_df[transaction_df.is_fraud == 1][['transaction_amount', 'merchant_id']]
+```
+
+```{python}
+
+```
+
+# Exploratory Data Analysis
+
+## Target Distribution
+
+```{python}
+
+
+total_amt = transaction_df['transaction_amount'].sum()
+total = len(transaction_df)
+
+total_amt_by_target = transaction_df.groupby(['is_fraud'])['transaction_amount'].sum().reset_index()
+
+plt.figure(figsize=(16,6))
+
+# no.of rows, no. of cols, plot_no
+plt.subplot(121)
+
+ax = sns.countplot(x='is_fraud', data=transaction_df)
+
+ax.set_title("Fraud Transaction Distribution", fontsize=22, pad=20.0)
+ax.set_xlabel('')
+ax.set_ylabel('Count', fontsize=18)
+ax.set_ylim(0, total * 0.05 + total)
+ax.set_xticklabels(['0 (No Fraud)', '1 (Fraud)'], fontsize=15)
+
+h_lst = [p.get_height() for p in ax.patches]
+pad = max(h_lst) * 0.01
+
+print(h_lst)
+for p in ax.patches:
+    height = p.get_height()
+    if np.isnan(height):
+        continue
+    ax.text(p.get_x() + p.get_width() / 2.0,
+            height + pad,
+            '{:1.2f}%'.format(height / total * 100),
+            ha="center", fontsize=15)
+    
+plt.subplot(122)
+
+ax1 = sns.barplot(x='is_fraud', y='transaction_amount', data=total_amt_by_target)
+
+ax1.set_title("Total Transaction Amount Distribution by Target (isFraud?)", fontsize=18, pad=20.0)
+ax1.set_xlabel('')
+ax1.set_ylabel('Total Transaction Amount', fontsize=18)
+ax1.set_ylim(0, total_amt * 0.05 + total_amt)
+ax1.set_xticklabels(['0 (No Fraud)', '1 (Fraud)'], fontsize=15)
+
+h_lst = [p.get_height() for p in ax1.patches]
+pad = max(h_lst) * 0.01
+
+for p in ax1.patches:
+    height = p.get_height()
+    if np.isnan(height):
+        continue
+    ax1.text(p.get_x() + p.get_width() / 2.0,
+             height + pad,
+             '{:1.2f}%'.format(height / total_amt * 100),
+             ha="center", fontsize=15)
+
+plt.show()
+```
+
+## Transaction Amount Quantiles
+
+```{python}
+print("Transaction Amount Quantiles")
+print(transaction_df['transaction_amount'].quantile([.01, .025, .1, .25, .5, .75, .9, .975, .99]))
+```
+
+## Plotting Transaction Amount Distribution
+
+```{python}
+# First Figure
+plt.figure(figsize=(16, 12))
+plt.suptitle("Total Transaction Amount Distribution", fontsize=20)
+
+plt.subplot(221)
+ax1 = sns.distplot(transaction_df['transaction_amount'])
+ax1.set_title("Transaction Amount Distribuition", fontsize=18)
+ax1.set_xlabel("")
+ax1.set_ylabel("Probability", fontsize=15)
+
+plt.subplot(222)
+ax2 = sns.distplot(np.log(transaction_df['transaction_amount']))
+ax2.set_title("Transaction Amount (Log) Distribuition", fontsize=18)
+ax2.set_xlabel("")
+ax2.set_ylabel("Probability", fontsize=15)
+
+# 2nd Figure
+plt.figure(figsize=(16,12))
+
+plt.subplot(211)
+no_fraud_transaction_list = range(transaction_df[transaction_df['is_fraud'] == 0].shape[0])
+no_fraud_transaction_amt = np.sort(transaction_df[transaction_df['is_fraud'] == 0]['transaction_amount'].values)
+fraud_transaction_list = range(transaction_df[transaction_df['is_fraud'] == 1].shape[0])
+fraud_transaction_amt = np.sort(transaction_df[transaction_df['is_fraud'] == 1]['transaction_amount'].values)
+
+ax3 = plt.scatter(no_fraud_transaction_list, no_fraud_transaction_amt, label='No Fraud', alpha=.2)
+ax3 = plt.scatter(fraud_transaction_list, fraud_transaction_amt, label='Fraud', alpha=.2)
+ax3 = plt.title("FRAUD and NO FRAUD Transaction Amount Distribution", fontsize=20)
+ax3 = plt.xlabel("Index")
+ax3 = plt.ylabel("Transaction Amount", fontsize=15)
+ax3 = plt.legend()
+
+# 3rd Figure
+plt.figure(figsize=(16, 12))
+
+plt.suptitle("Individual Transaction Amount Distribution", fontsize=20)
+
+plt.subplot(321)
+ax4 = plt.scatter(no_fraud_transaction_list, no_fraud_transaction_amt, label='No Fraud', alpha=.4)
+ax4 = plt.title("NO FRAUD - Transaction Amount Distribution", fontsize=15)
+ax4 = plt.xlabel("Index")
+ax4 = plt.ylabel("Transaction Amount", fontsize=15)
+
+plt.subplot(322)
+ax5 = plt.scatter(fraud_transaction_list, fraud_transaction_amt, label='Fraud', alpha=.2)
+ax5 = plt.title("FRAUD - Transaction Amount Distribution", fontsize=15)
+ax5 = plt.xlabel("Index")
+ax5 = plt.ylabel("Transaction Amount", fontsize=15)
+
+plt.show()
+```
+
+## Outliers 
+
+- Trasaction Amount have outliers in case of both Fraud and No Fraud Transactions but we are not sure whether it is due to Data Entry errors, Data processing errors or they are intentional or natural outliers so just removing them now does not make sense before having rich business knowledge.
+
+
+## Qunatiles of Fraud and No Fraud Transactions
+
+```{python}
+fraud_transaction_quantile = transaction_df[transaction_df['is_fraud'] == 1]['transaction_amount'] \
+                             .quantile([.01, .025, .1, .25, .5, .75, .9, .975, .99]).reset_index()
+
+no_fraud_transaction_quantile = transaction_df[transaction_df['is_fraud'] == 0]['transaction_amount'] \
+                             .quantile([.01, .025, .1, .25, .5, .75, .9, .975, .99]).reset_index()
+
+transaction_quantile_df = pd.concat([fraud_transaction_quantile, no_fraud_transaction_quantile],
+                                    axis=1, keys=['Fraud', 'No Fraud'])
+```
+
+```{python}
+transaction_quantile_df
+```
+
+## Previous_Balance, New_Balance Distributions
+
+```{python}
+plt.figure(figsize=(16,16))
+
+plt.subplot(211)
+ax1 = sns.distplot(transaction_df[transaction_df['is_fraud'] == 1]['previous_balance'], label='Fraud')
+ax1 = sns.distplot(transaction_df[transaction_df['is_fraud'] == 0]['previous_balance'], label='No Fraud')
+ax1.legend()
+ax1.set_title('Previous_Balance Values Distribution by Target', fontsize=20)
+ax1.set_xlabel('Previous_Balance Values', fontsize=18)
+ax1.set_ylabel('Probability', fontsize=18)
+
+plt.subplot(212)
+ax2 = sns.distplot(transaction_df[transaction_df['is_fraud'] == 1]['new_balance'].dropna(), label='Fraud')
+ax2 = sns.distplot(transaction_df[transaction_df['is_fraud'] == 0]['new_balance'].dropna(), label='No Fraud')
+ax2.legend()
+ax2.set_title('New_Balance Values Distribution by Target', fontsize=20)
+ax2.set_xlabel('New_Balance Values', fontsize=18)
+ax2.set_ylabel('Probability', fontsize=18)
+    
+plt.subplots_adjust(hspace = 0.4, top = 0.85)
+
+plt.show()
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+## Transaction Type
+
+```{python}
+transaction_type_target_df = pd.crosstab(transaction_df['transaction_type'], 
+                                         transaction_df['is_fraud'], 
+                                         normalize='index') * 100
+transaction_type_target_df = transaction_type_target_df.reset_index()
+transaction_type_target_df = transaction_type_target_df.rename(columns = {0: 'No Fraud', 1: 'Fraud'})
+
+total = len(transaction_df)
+
+plt.figure(figsize=(14, 10))
+plt.suptitle('Transaction_Type Distributions', fontsize=28)
+
+plt.subplot(221)
+ax1 = sns.countplot(x='transaction_type', data=transaction_df)
+ax1.set_title('Transaction_Type Distribution', fontsize=19)
+ax1.set_xlabel('Transaction_Type', fontsize=17)
+ax1.set_ylabel('Count', fontsize=17)
+ax1.set_ylim(0, 3500)
+
+h_lst = [p.get_height() for p in ax1.patches]
+pad = max(h_lst) * 0.01
+
+for p in ax1.patches:
+    height = p.get_height()
+    if np.isnan(height):
+        continue
+    ax1.text(p.get_x() + p.get_width() / 2.0,
+             height + pad,
+             '{:1.2f}%'.format(height / total * 100),
+             ha="center", fontsize=13)
+    
+plt.subplot(222)
+ax2 = sns.countplot(x='transaction_type', hue='is_fraud', data=transaction_df)
+plt.legend(title='Fraud', loc='best', labels=['No', 'Yes'])
+
+ax2_twin = ax2.twinx()
+ax2_twin = sns.pointplot(x='transaction_type', y='Fraud', 
+                         data=transaction_type_target_df, 
+                         color='black',
+                         order=['CASH_OUT', 'TRANSFER', 'PAYMENT', 'CASH_IN'],
+                         legend=False)
+ax2_twin.set_ylabel('% of Fraud Transactions', fontsize=16)
+
+ax2.set_title('Transaction_Type by Target(isFraud)', fontsize=19)
+ax2.set_xlabel('Transaction_Type', fontsize=17)
+ax2.set_ylabel('Count', fontsize=17)
+
+plt.subplot(212)
+ax3 = sns.boxenplot(x='transaction_type', y='transaction_amount', hue='is_fraud', 
+                    data=transaction_df)
+ax3.set_title('Transaction Amount Distribuition by Transaction_Type and Target', fontsize=20)
+ax3.set_xlabel('Transaction_Type', fontsize=17)
+ax3.set_ylabel('Transaction Amount', fontsize=17)
+
+plt.subplots_adjust(hspace=0.6, wspace=0.25, top=0.85)
+
+plt.show()
+```
+
+- Boxenplot showing some of the Fraud Transaction amount is very very large as compare to non-fradulent transactions.
+- Boxenplot shows how many transactions (fraud / non-fraud) are for a specific transaction amount.
+- Too much high amount for Fraud Transactions could be outliers as well (but not sure).
+
+```{python}
+def plot_category_count_and_amount_by_fraud_percent(df, col):
+    total = len(df)
+    total_amt = df['transaction_amount'].sum()
+    
+    tmp = pd.crosstab(df[col], df['is_fraud'], normalize='index') * 100
+    tmp = tmp.reset_index()
+    tmp.rename(columns={0: 'No Fraud', 1: 'Fraud'}, inplace=True)
+    
+    percent_amt = ((df.groupby(['is_fraud', col])['transaction_amount'].sum() / 
+                    df.groupby([col])['transaction_amount'].sum()) * 100).unstack('is_fraud')
+    
+    percent_amt = percent_amt.reset_index()
+    percent_amt.rename(columns={0: 'No Fraud', 1: 'Fraud'}, inplace=True)
+    percent_amt = percent_amt.fillna(0)
+    total_amt_by_category = df.groupby([col])['transaction_amount'].sum().reset_index()
+    
+    plt.figure(figsize=(16, 14))
+    plt.suptitle(f'{col} Distributions', fontsize=24)
+    
+    # plot 1
+    plt.subplot(211)
+    ax1 = sns.countplot(x=col, data=df, order=list(tmp[col].values))
+    ax1.set_title(f'{col} Distribution\nCount and %Fraud by each category', fontsize=18)
+    ax1.set_xlabel(f'{col} Category Name', fontsize=14)
+    ax1.set_xticklabels(ax1.get_xticklabels(), rotation=45)
+    ax1.set_ylabel('Count', fontsize=14)
+    
+    # plot fraud transaction and set only y-axis    
+    ax1_twin = ax1.twinx()
+    ax1_twin = sns.pointplot(x=col, y='Fraud', data=tmp, 
+                             order=list(tmp[col].values),
+                             color='black', legend=False)
+    ax1_twin.set_ylabel('% of Fraud Transactions', fontsize=14)
+    ax1_twin.set_ylim(0, tmp['Fraud'].max() * 1.1)
+ 
+    # set percentages for each bar in graph
+    ax1_sizes = []
+    
+    h_lst = [p.get_height() for p in ax1.patches]
+    pad = max(h_lst) * 0.01
+
+    for p in ax1.patches:
+        height = p.get_height()
+        if np.isnan(height):
+            continue
+        ax1_sizes.append(height)
+        ax1.text(p.get_x() + p.get_width() / 2.0,
+                 height + pad,
+                 '{:1.2f}%'.format(height / total * 100),
+                 ha="center", fontsize=12)
+    
+    ax1.set_ylim(0, max(ax1_sizes) * 1.15)
+    
+    # plot 2
+    plt.subplot(212)
+    ax2 = sns.barplot(x=col, y='transaction_amount', 
+                      data=total_amt_by_category, 
+                      order=list(tmp[col].values))
+    
+    ax2.set_title(f'{col} by Transactions Total + %of total and %Fraud Transactions', fontsize=18)
+    ax2.set_xlabel(f'{col} Category Name', fontsize=14)
+    ax2.set_xticklabels(ax2.get_xticklabels(), rotation=45)
+    ax2.set_ylabel('Transaction Total Amount', fontsize=14)
+    
+    # plot fraud transaction amount and set only y-axis
+    ax2_twin = ax2.twinx()
+    ax2_twin = sns.pointplot(x=col, y='Fraud', data=percent_amt, 
+                             order=list(tmp[col].values),
+                             color='black', legend=False)
+    ax2_twin.set_ylabel('%Fraud Total Amount', fontsize=14)
+    ax2_twin.set_ylim(0, percent_amt['Fraud'].max() * 1.1)
+    
+    # set percentages for each bar in graph
+    ax2_sizes = []
+    
+    h_lst = [p.get_height() for p in ax2.patches]
+    pad = max(h_lst) * 0.01
+    
+    for p in ax2.patches:
+        height = p.get_height()
+        if np.isnan(height):
+            continue
+        ax2_sizes.append(height)
+        ax2.text(p.get_x() + p.get_width() / 2.0,
+                 height + pad,
+                 '{:1.2f}%'.format(height / total_amt * 100),
+                 ha="center", fontsize=12)
+    
+    plt.subplots_adjust(hspace=.4, top = 0.9)
+    
+    plt.show()
+```
+
+```{python}
+plot_category_count_and_amount_by_fraud_percent(transaction_df, 'day_of_week')
+```
+
+```{python}
+# Transactions Type on Week days ???????
+# Saturday and Sunday are interesting so will include them in ---> Hypothesis
+
+transaction_type_by_week_days = pd.crosstab(transaction_df['day_of_week'], 
+                                            transaction_df['transaction_type'], normalize='index') * 100
+transaction_type_by_week_days
+```
+
+```{python}
+transaction_type_by_week_days.plot(kind='bar', stacked=True, figsize=(10, 8), 
+                                   title='Transaction_Type by Week_Days', fontsize=13)
+```
+
+```{python}
+# Previous Balance binning and check with Fraud Transactions ????????
+pd.crosstab(transaction_df['previous_balance_binned'], transaction_df['is_fraud'], normalize='index') * 100
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
